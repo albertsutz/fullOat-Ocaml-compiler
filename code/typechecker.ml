@@ -231,8 +231,33 @@ let typecheck_tdecl (tc : Tctxt.t) id fs  (l : 'a Ast.node) : unit =
     - typechecks the body of the function (passing in the expected return type
     - checks that the function actually returns
 *)
+
+let typecheck_blk (tc : Tctxt.t) (blk : Ast.block) (to_ret:ret_ty) : Tctxt.t * bool =
+  List.fold_left (
+    fun (acc_tc, acc_ret_val) x -> 
+      let stmt_tc, stmt_return = typecheck_stmt (acc_tc) (x) (to_ret) in 
+      begin match (acc_ret_val, stmt_return) with
+      | (true, true) -> type_error (no_loc blk) "double return in block error"
+      | (false, false) -> (stmt_tc, false)
+      | _ -> (stmt_tc, true)
+      end
+  ) (tc, false) (blk)
+
+let distinct_id (ids: id list): bool = 
+  let sorted_list = List.sort_uniq compare ids in 
+  List.length sorted_list = List.length ids 
+
+let create_context (tc : Tctxt.t) (f : Ast.fdecl): Tctxt.t = 
+  let add_arg acc (ty, id) = add_local acc id ty in
+  List.fold_left add_arg tc f.args 
+
 let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
-  failwith "todo: typecheck_fdecl"
+  let types, ids = List.split(f.args) in 
+  let distinct = distinct_id ids in 
+  let new_ctx = create_context tc f in 
+  let _, returns = typecheck_blk new_ctx f.body f.frtyp in 
+  
+  if (distinct && returns) then () else failwith "type error" 
 
 (* creating the typchecking context ----------------------------------------- *)
 
