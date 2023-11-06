@@ -48,8 +48,7 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
 *)
 let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
   begin match (t1, t2) with
-  | (TInt, TInt) -> true
-  | (TBool, TBool) -> true
+  | (TInt, TInt) | (TBool, TBool) -> true
   | (TNullRef r1, TNullRef r2) | (TRef r1, TRef r2)| (TRef r1, TNullRef r2) -> (subtype_ref c r1 r2)
   | _ -> false
   end
@@ -68,12 +67,12 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
       end in 
     (subtype_ret_t c rt1 rt2) && (aux_func l1 l2)
   | (RStruct r1, RStruct r2) -> 
-    begin match (lookup_struct_option r1 c) with
+    begin match (lookup_struct_option r2 c) with
     | Some (field_li) -> 
       let rec aux_func x : bool = 
         begin match x with
         | {fieldName; ftyp}::tail -> 
-          begin match (lookup_field_option r2 fieldName c) with
+          begin match (lookup_field_option r1 fieldName c) with
           | Some field_2_type -> (ftyp = field_2_type) && (aux_func tail)
           | _ -> false
           end
