@@ -217,7 +217,9 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
         | _ -> type_error e "type error Call"
       ) in 
       let types = List.map (typecheck_exp c) es in 
-      let combined_lst = List.combine ts types in 
+      let eq_len = List.length es = List.length ts in 
+      let combined_lst = 
+        if (eq_len) then List.combine ts types else type_error e "type error Call" in 
       let subtype_and_acc (e1, e2) acc = (subtype c e1 e2) && acc in
       let valid_args = List.fold_right subtype_and_acc combined_lst true  in 
       let ret = (match rt with | RetVal typ -> typ | _ -> type_error e "type error Call") in 
