@@ -70,7 +70,27 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
     - tc contains the structure definition context
  *)
 let rec typecheck_ty (l : 'a Ast.node) (tc : Tctxt.t) (t : Ast.ty) : unit =
-  failwith "todo: implement typecheck_ty"
+  (match t with 
+    | Ast.TBool | Ast.TInt -> ()
+    | Ast.TRef ref | Ast.TNullRef ref->  typecheck_tref l tc ref
+  )
+and typecheck_tref (l : 'a Ast.node) (tc : Tctxt.t) (ref : Ast.rty) : unit = 
+  (match ref with 
+    | Ast.RString -> ()
+    | Ast.RArray t -> typecheck_ty l tc t 
+    | Ast.RStruct i -> 
+      (match lookup_struct_option i tc with 
+        | Some r -> ()
+        | None -> failwith "type error"
+      )
+    | Ast.RFun (ts, rt) -> 
+      ignore(List.map (typecheck_ty l tc) ts);
+      (match rt with 
+        | Ast.RetVoid -> ()
+        | Ast.RetVal rtyp -> typecheck_ty l tc rtyp 
+      )
+  )
+
 
 
 (* A helper function to determine whether a type allows the null value *)
