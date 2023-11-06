@@ -306,6 +306,19 @@ let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.
   begin match s.elt with
   | Assn (lhs, e) -> 
     let lhs_ty = typecheck_exp tc lhs in 
+    (* lhs not a global function id *)
+    begin match lhs.elt with
+    | Id (id) -> 
+      begin match (lookup_global_option id tc) with
+      | Some(x) -> 
+        begin match lhs_ty with 
+        | TRef(RFun(_)) -> type_error s "assignment with global function id for lhs"
+        | _ -> ()
+        end
+      | _ -> ()
+      end
+    | _ -> () 
+    end;
     let e_ty = typecheck_exp tc e in 
     if (subtype tc e_ty lhs_ty) then (tc, false) 
     else type_error s "assignment rhs is not subtype of lhs"
