@@ -227,7 +227,9 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
         | _ -> type_error e "type error Call"
       ) in 
       let types = List.map (typecheck_exp c) es in 
-      let combined_lst = List.combine ts types in 
+      let eq_len = List.length es = List.length ts in 
+      let combined_lst = 
+        if (eq_len) then List.combine ts types else type_error e "type error Call" in 
       let subtype_and_acc (e1, e2) acc = (subtype c e1 e2) && acc in
       let valid_args = List.fold_right subtype_and_acc combined_lst true  in 
       let ret = (match rt with | RetVal typ -> typ | _ -> type_error e "type error Call") in 
@@ -463,7 +465,7 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
   let new_ctx = create_context tc f in 
   let _, returns = typecheck_blk new_ctx f.body f.frtyp in 
   
-  if (distinct && returns) then () else failwith "type error fdecl" 
+  if (distinct && returns) then () else type_error l "type error fdecl" 
 
 (* creating the typchecking context ----------------------------------------- *)
 
