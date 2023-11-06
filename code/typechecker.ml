@@ -47,11 +47,51 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
       (Don't forget about OCaml's 'and' keyword.)
 *)
 let rec subtype (c : Tctxt.t) (t1 : Ast.ty) (t2 : Ast.ty) : bool =
-  failwith "todo: subtype"
+  begin match (t1, t2) with
+  | (TInt, TInt) -> true
+  | (TBool, TBool) -> true
+  | (TNullRef r1, TNullRef r2) | (TRef r1, TRef r2)| (TRef r1, TNullRef r2) -> (subtype_ref c r1 r2)
+  | _ -> false
+  end
 
 (* Decides whether H |-r ref1 <: ref2 *)
 and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
-  failwith "todo: subtype_ref"
+  begin match (t1, t2) with
+  | (RString, RString) -> true
+  | (RArray r1, RArray r2) -> r1 = r2
+  | (RFun(l1, rt1), RFun(l2, rt2)) -> 
+    let rec aux_func type_list_1 type_list_2 : bool = 
+      begin match (type_list_1, type_list_2) with
+      | (h1::t1, h2::t2) -> (subtype c h2 h1) && (aux_func t1 t2)
+      | ([], []) -> true
+      | _ -> false
+      end in 
+    (subtype_ret_t c rt1 rt2) && (aux_func l1 l2)
+  | (RStruct r1, RStruct r2) -> 
+    begin match (lookup_struct_option r1 c) with
+    | Some (field_li) -> 
+      let rec aux_func x : bool = 
+        begin match x with
+        | {fieldName; ftyp}::tail -> 
+          begin match (lookup_field_option r2 fieldName c) with
+          | Some field_2_type -> (ftyp = field_2_type) && (aux_func tail)
+          | _ -> false
+          end
+        | [] -> true
+        end
+      in aux_func field_li
+    | _ -> false
+    end
+  | _ -> false
+  end
+
+(* Decides whether H |-r ref1 <: ref2 *)
+and subtype_ret_t (c : Tctxt.t) (ret_t1 : Ast.ret_ty) (ret_t2 : Ast.ret_ty) : bool = 
+  begin match (ret_t1, ret_t2) with
+  | (RetVoid, RetVoid) -> true
+  | (RetVal r1, RetVal r2) -> (subtype c r1 r2)
+  | _ -> false
+  end
 
 
 (* well-formed types -------------------------------------------------------- *)
