@@ -224,16 +224,16 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
       let ts, rt = 
       (match typecheck_exp c f with 
         | TRef (RFun (ty_ls, ret)) -> (ty_ls, ret) 
-        | _ -> type_error e "type error Call"
+        | _ -> type_error e "type error Call 1"
       ) in 
       let types = List.map (typecheck_exp c) es in 
       let eq_len = List.length es = List.length ts in 
       let combined_lst = 
-        if (eq_len) then List.combine ts types else type_error e "type error Call" in 
+        if (eq_len) then List.combine types ts else type_error e "type error Call 2" in 
       let subtype_and_acc (e1, e2) acc = (subtype c e1 e2) && acc in
       let valid_args = List.fold_right subtype_and_acc combined_lst true  in 
-      let ret = (match rt with | RetVal typ -> typ | _ -> type_error e "type error Call") in 
-      if (valid_args) then ret else type_error e "type error Call"
+      let ret = (match rt with | RetVal typ -> typ | _ -> type_error e "type error Call 3") in 
+      if (valid_args) then ret else type_error e "type error Call 4"
     | Bop (bop, e1, e2) -> 
       let t1 = typecheck_exp c e1 in 
       let t2 = typecheck_exp c e2 in  
