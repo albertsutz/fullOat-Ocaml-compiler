@@ -37,6 +37,10 @@ let typ_of_unop : Ast.unop -> Ast.ty * Ast.ty = function
   | Neg | Bitnot -> (TInt, TInt)
   | Lognot       -> (TBool, TBool)
 
+let distinct_id (ids: id list): bool = 
+  let sorted_list = List.sort_uniq compare ids in 
+  List.length sorted_list = List.length ids 
+
 (* subtyping ---------------------------------------------------------------- *)
 (* Decides whether H |- t1 <: t2 
     - assumes that H contains the declarations of all the possible struct types
@@ -200,7 +204,13 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
         let t2 = (match lookup_field_option i f c with | Some t -> t | _ -> type_error e "type error Cstruct") in
         (subtype c t t2) && acc in 
       let id_types = List.combine ids types in 
-      let valid = List.fold_right check_subtype_field id_types true in  
+      let valid = List.fold_right check_subtype_field id_types true in
+      (* need to check that no duplicate ids and length == length of params in struct *)
+      if not (distinct_id ids) then type_error e "duplicate field in cstruct initialization";
+      begin match (lookup_struct_option i c) with
+      | Some(field_list) -> if (List.length (field_list) != List.length (fs)) then type_error e "missing field in Cstruct initialization"
+      | None -> type_error e "no struct found in ctxt for Cstruct"
+      end;
       if (valid) then TRef (RStruct i) else type_error e "type error Cstruct"
     | Proj (e, i) -> 
       let s = typecheck_exp c e in 
@@ -442,10 +452,6 @@ let typecheck_tdecl (tc : Tctxt.t) id fs  (l : 'a Ast.node) : unit =
     - typechecks the body of the function (passing in the expected return type
     - checks that the function actually returns
 *)
-
-let distinct_id (ids: id list): bool = 
-  let sorted_list = List.sort_uniq compare ids in 
-  List.length sorted_list = List.length ids 
 
 let create_context (tc : Tctxt.t) (f : Ast.fdecl): Tctxt.t = 
   let add_arg acc (ty, id) = add_local acc id ty in
