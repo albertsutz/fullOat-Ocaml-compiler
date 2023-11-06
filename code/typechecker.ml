@@ -477,8 +477,13 @@ let check_dups_context ctxt : bool =
   let ids, _ = List.split(ctxt) in 
   not (distinct_id ids)
 
+let create_initial_ctxt : Tctxt.t = 
+  List.fold_left (
+    fun acc (f_name, (fdecl_types, frtyp)) -> add_global (acc) (f_name) (TRef(RFun(fdecl_types, frtyp)))
+  ) (empty) (builtins)
+
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
-  let empty_ctxt = empty in 
+  let initial_ctxt = create_initial_ctxt in 
   let result = List.fold_left (
     fun acc x -> 
       begin match x with
@@ -488,7 +493,7 @@ let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
         else add_struct acc tdecl_id tdecl_field_list
       | _ -> acc
       end
-  ) (empty_ctxt) (p) in 
+  ) (initial_ctxt) (p) in 
   if (check_dups_context result.structs) then type_error (no_loc p) "duplicate in structs context"
   else result
 
