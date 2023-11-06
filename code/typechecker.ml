@@ -476,7 +476,7 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
 *)
 let check_dups_context ctxt : bool =
   let ids, _ = List.split(ctxt) in 
-  distinct_id ids
+  not (distinct_id ids)
 
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
   let empty_ctxt = empty in 
