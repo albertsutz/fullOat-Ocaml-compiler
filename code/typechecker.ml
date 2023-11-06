@@ -120,7 +120,7 @@ and typecheck_tref (l : 'a Ast.node) (tc : Tctxt.t) (ref : Ast.rty) : unit =
     | Ast.RArray t -> typecheck_ty l tc t 
     | Ast.RStruct i -> 
       (match lookup_struct_option i tc with 
-        | Some r -> ()
+        | Some _ -> ()
         | None -> failwith "type error"
       )
     | Ast.RFun (ts, rt) -> 
@@ -165,7 +165,106 @@ let is_nullable_ty (t : Ast.ty) : bool =
 
 *)
 let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
-  failwith "todo: implement typecheck_exp"
+  (match e.elt with 
+    | CNull rt -> typecheck_tref e c rt; Ast.TNullRef rt
+    | CBool _ -> Ast.TBool 
+    | CInt _ -> Ast.TInt
+    | CStr _ -> Ast.TRef (RString)
+    | Id i -> typecheck_id c i  
+    | CArr (t, es) -> typecheck_carr c e t es
+    | NewArr (t, e) -> typecheck_newarr c e t 
+    | NewArrInit (t, e1, i, e2) -> 
+      typecheck_ty e c t; 
+      (match typecheck_exp c e1 with | TInt -> () | _ -> failwith "type error"); 
+      let local = lookup_local_option i c in 
+      (match local with | Some _ -> failwith "type error" | _ -> ()); 
+      let new_ctxt = add_local c i t in 
+      let nt = typecheck_exp new_ctxt e2 in 
+      if subtype c nt t then TRef (RArray t) else failwith "type error"
+    | Index (e1, e2) -> 
+      let t1 = typecheck_exp c e1 in 
+      let t2 = typecheck_exp c e2 in 
+      (match (t1, t2) with 
+        | (TRef (RArray t), TInt) -> t 
+        | _ ->  failwith "type error"
+      )
+    | Length e -> 
+      let t = typecheck_exp c e in 
+      (match t with 
+        | TRef _ -> TInt 
+        | _ -> failwith "type error" 
+      )
+    | CStruct (i, fs) -> 
+      let ids, es = List.split fs in 
+      let types = List.map (typecheck_exp c) es in 
+      let check_subtype_field (f, t) acc = 
+        let t2 = (match lookup_field_option i f c with | Some t -> t | _ -> failwith "type error") in
+        (subtype c t t2) && acc in 
+      let id_types = List.combine ids types in 
+      let valid = List.fold_right check_subtype_field id_types true in  
+      if (valid) then TRef (RStruct i) else failwith "type error"
+    | Proj (e, i) -> 
+      let s = typecheck_exp c e in 
+      let st_name = (match s with | TRef (RStruct id) -> id | _ -> failwith "type error") in 
+      let field = lookup_field_option st_name i c in 
+      (match field with 
+        | Some t -> t 
+        | _ -> failwith "type error" 
+      )
+    | Call (f, es) -> 
+      let ts, rt = 
+      (match typecheck_exp c f with 
+        | TRef (RFun (ty_ls, ret)) -> (ty_ls, ret) 
+        | _ -> failwith "error"
+      ) in 
+      let types = List.map (typecheck_exp c) es in 
+      let combined_lst = List.combine ts types in 
+      let subtype_and_acc (e1, e2) acc = (subtype c e1 e2) && acc in
+      let valid_args = List.fold_right subtype_and_acc combined_lst true  in 
+      let ret = (match rt with | RetVal typ -> typ | _ -> failwith "type error") in 
+      if (valid_args) then ret else failwith "error"
+    | Bop (bop, e1, e2) -> 
+      let t1 = typecheck_exp c e1 in 
+      let t2 = typecheck_exp c e2 in  
+      (match bop with 
+        | Eq | Neq -> 
+          let sub1 = subtype c t1 t2 in 
+          let sub2 = subtype c t2 t1 in 
+          if (sub1 && sub2) then TBool else failwith "type error" 
+        | _ -> 
+          let (t1', t2', rt) = typ_of_binop bop in 
+          if (t1 = t1' && t2 = t2') then rt else failwith "type error"
+      )
+    | Uop (unop, e) -> 
+      let t = typecheck_exp c e in 
+      let (t', rt) = typ_of_unop unop in 
+      if (t=t') then rt else failwith "type error"
+  )
+
+and typecheck_id (c : Tctxt.t) (i: id) : Ast.ty = 
+  let local = lookup_local_option i c in 
+  let global = lookup_global_option i c in 
+  (match (local, global) with 
+    | (Some t, _) -> t 
+    | (None, Some t) -> t 
+    | _ -> failwith "type error"
+  )
+and typecheck_carr (c : Tctxt.t) (e: Ast.exp node) (t: ty) (es: exp node list): Ast.ty = 
+  typecheck_ty e c t; 
+  let types = List.map (typecheck_exp c) es in 
+  let subtype_and_acc e acc = (subtype c e t) && acc in
+  let valid = List.fold_right subtype_and_acc types true in 
+  if (valid) then TRef (RArray t) else failwith "error"
+and typecheck_newarr (c : Tctxt.t) (e: Ast.exp node) (t: ty): Ast.ty = 
+  typecheck_ty e c t; 
+  (match typecheck_exp c e with | TInt -> () | _ -> failwith "error"); 
+  (match t with 
+    | TInt | TBool | TNullRef _ -> ()
+    | _ -> failwith "error"
+  ); 
+  TRef (RArray t) 
+
+
 
 (* statements --------------------------------------------------------------- *)
 
