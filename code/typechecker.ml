@@ -459,7 +459,7 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
   let new_ctx = create_context tc f in 
   let _, returns = typecheck_blk new_ctx f.body f.frtyp in 
   
-  if (distinct && returns) then () else failwith "type error fdecl" 
+  if (distinct && returns) then () else type_error l "type error fdecl" 
 
 (* creating the typchecking context ----------------------------------------- *)
 
