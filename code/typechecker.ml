@@ -232,17 +232,6 @@ let typecheck_tdecl (tc : Tctxt.t) id fs  (l : 'a Ast.node) : unit =
     - checks that the function actually returns
 *)
 
-let typecheck_blk (tc : Tctxt.t) (blk : Ast.block) (to_ret:ret_ty) : Tctxt.t * bool =
-  List.fold_left (
-    fun (acc_tc, acc_ret_val) x -> 
-      let stmt_tc, stmt_return = typecheck_stmt (acc_tc) (x) (to_ret) in 
-      begin match (acc_ret_val, stmt_return) with
-      | (true, true) -> type_error (no_loc blk) "double return in block error"
-      | (false, false) -> (stmt_tc, false)
-      | _ -> (stmt_tc, true)
-      end
-  ) (tc, false) (blk)
-
 let distinct_id (ids: id list): bool = 
   let sorted_list = List.sort_uniq compare ids in 
   List.length sorted_list = List.length ids 
