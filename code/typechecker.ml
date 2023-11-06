@@ -85,7 +85,7 @@ and subtype_ref (c : Tctxt.t) (t1 : Ast.rty) (t2 : Ast.rty) : bool =
   | _ -> false
   end
 
-(* Decides whether H |-r ref1 <: ref2 *)
+(* Decides whether H |-rt ref1 <: ref2 *)
 and subtype_ret_t (c : Tctxt.t) (ret_t1 : Ast.ret_ty) (ret_t2 : Ast.ret_ty) : bool = 
   begin match (ret_t1, ret_t2) with
   | (RetVoid, RetVoid) -> true
@@ -205,7 +205,107 @@ let rec typecheck_exp (c : Tctxt.t) (e : Ast.exp node) : Ast.ty =
      block typecheck rules.
 *)
 let rec typecheck_stmt (tc : Tctxt.t) (s:Ast.stmt node) (to_ret:ret_ty) : Tctxt.t * bool =
-  failwith "todo: implement typecheck_stmt"
+  begin match s.elt with
+  | Assn (lhs, e) -> 
+    let lhs_ty = typecheck_exp tc lhs in 
+    let e_ty = typecheck_exp tc e in 
+    if (subtype tc e_ty lhs_ty) then (tc, false) 
+    else type_error s "assignment rhs is not subtype of lhs"
+
+  | Decl (v) -> 
+    let v_id, v_exp = v in 
+    begin match lookup_local_option v_id tc with
+    | Some(x) -> type_error s "redeclaration of variable"
+    | None -> 
+        let v_type = typecheck_exp tc v_exp in 
+        let new_tc = add_local tc v_id v_type in 
+        (new_tc, false)
+    end
+
+  | Ret (e_option) -> 
+    begin match e_option with
+    | Some (e) -> 
+      let ret_type = typecheck_exp tc e in 
+      begin match to_ret with
+      | RetVal (act_ret_to) -> if (subtype tc ret_type act_ret_to) then (tc, true)
+        else type_error s "return expression type different from ret_to 1"
+      | _ -> type_error s "return expression type different from ret_to 2"
+      end
+    | None -> if (to_ret = RetVoid) then (tc, true) else type_error s "return expression is None but ret_to isnt void"
+    end
+
+  | SCall (e, e_li) -> 
+    let func_type = typecheck_exp tc e in 
+    begin match func_type with
+    | TRef(RFun(param_ty_li, RetVoid)) -> 
+      let exp_li_type = List.map (fun x -> (typecheck_exp tc x)) e_li in 
+      let rec aux_func param_ty_li exp_ty_li : bool = 
+        begin match (param_ty_li, exp_ty_li) with
+        | (par_ty::t1, exp_ty::t2) -> (subtype tc exp_ty par_ty) && (aux_func t1 t2)
+        | ([], []) -> true
+        | _ -> false
+        end in
+      if (aux_func param_ty_li exp_li_type) then (tc, false)
+      else type_error s "scall params and expression different type"
+    | _ -> type_error s "scall expression is not a function that returns void"
+    end
+
+  | If (if_exp, blk1, blk2) ->
+    begin match (typecheck_exp tc if_exp) with
+    | TBool -> 
+      let _, ret_val_1 = typecheck_blk tc blk1 to_ret in 
+      let _, ret_val_2 = typecheck_blk tc blk2 to_ret in 
+      (tc, ret_val_1 && ret_val_2)
+    | _ -> type_error s "if statement expression not boolean"
+    end
+
+  | Cast (ref, id, exp, blk1, blk2) -> 
+    begin match (typecheck_exp tc exp) with
+    | TNullRef x -> 
+      if (subtype tc (TRef x) (TRef ref)) then
+        let tc2 = add_local (tc) (id) (TRef ref) in 
+        let _, ret_val_1 = typecheck_blk tc2 blk1 to_ret in 
+        let _, ret_val_2 = typecheck_blk tc blk2 to_ret in 
+        (tc, ret_val_1 && ret_val_2)
+      else type_error s "expression type is not subtype of ref"
+    | _ -> type_error s "expression for IFQ is not a trefnull"
+    end
+
+
+  | For (v_li, exp, stmt, blk) ->
+    let tc2 = List.fold_left (
+      fun acc x -> let new_tc, _ = (typecheck_stmt (acc) (no_loc (Decl x)) (to_ret)) in new_tc
+    ) (tc) (v_li) in 
+    let _ = begin match (exp) with
+    | Some (e) -> if ((typecheck_exp tc2 e) = TBool) then () else type_error s "expression in for loop not boolean"
+    | None -> ()
+    end in 
+    let _ = begin match (stmt) with
+    | Some(s) -> ignore(typecheck_stmt tc2 s to_ret);
+    | None -> ()
+    end in 
+    let _ = typecheck_blk tc2 blk to_ret in 
+    (tc, false)
+
+  | While (e, blk) -> 
+    begin match (typecheck_exp tc e) with
+    | TBool -> 
+      ignore(typecheck_blk tc blk to_ret);
+      (tc, false)
+    | _ -> type_error s "condition in while loop is not a bool type"
+    end
+  end
+
+and typecheck_blk (tc : Tctxt.t) (blk : Ast.block) (to_ret:ret_ty) : Tctxt.t * bool =
+  List.fold_left (
+    fun (acc_tc, acc_ret_val) x -> 
+      let stmt_tc, stmt_return = typecheck_stmt (acc_tc) (x) (to_ret) in 
+      begin match (acc_ret_val, stmt_return) with
+      | (true, true) -> type_error (no_loc blk) "double return in block error"
+      | (false, false) -> (stmt_tc, false)
+      | _ -> (stmt_tc, true)
+      end
+  ) (tc, false) (blk)
 
 
 (* struct type declarations ------------------------------------------------- *)
@@ -261,15 +361,53 @@ let typecheck_fdecl (tc : Tctxt.t) (f : Ast.fdecl) (l : 'a Ast.node) : unit =
    NOTE: global initializers may mention function identifiers as
    constants, but can mention only other global values that were declared earlier
 *)
+let check_dups_context ctxt : bool =
+  let ids, _ = List.split(ctxt) in 
+  distinct_id ids
 
 let create_struct_ctxt (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_struct_ctxt"
+  let empty_ctxt = empty in 
+  let result = List.fold_left (
+    fun acc x -> 
+      begin match x with
+      | Gtdecl (t) -> 
+        let tdecl_id, tdecl_field_list = t.elt in 
+        if (check_dups tdecl_field_list) then type_error t ("duplicate in fields of global struct" ^ tdecl_id)
+        else add_struct acc tdecl_id tdecl_field_list
+      | _ -> acc
+      end
+  ) (empty_ctxt) (p) in 
+  if (check_dups_context result.structs) then type_error (no_loc p) "duplicate in structs context"
+  else result
 
 let create_function_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+  let result = List.fold_left (
+    fun acc x -> 
+      begin match x with
+      | Gfdecl (f) -> 
+        let {frtyp;fname;args;_} = f.elt in 
+          let fdecl_types, fdecl_ids = List.split args in 
+          add_global (acc) (fname) (TRef(RFun(fdecl_types, frtyp)))
+      | _ -> acc
+      end
+  ) (tc) (p) in
+  if (check_dups_context result.globals) then type_error (no_loc p) "duplicate in global function context"
+  else result
 
 let create_global_ctxt (tc:Tctxt.t) (p:Ast.prog) : Tctxt.t =
-  failwith "todo: create_function_ctxt"
+  let result = List.fold_left (
+    fun acc x -> 
+      begin match x with
+      | Gvdecl (g) -> 
+        let {name;init} = g.elt in 
+        add_global (acc) (name) (typecheck_exp acc init)
+      | _ -> acc
+      end
+  ) (tc) (p) in 
+  if (check_dups_context result.globals) then type_error (no_loc p) "duplicate in global identifier context"
+  else result
+
+
 
 
 (* This function implements the |- prog and the H ; G |- prog 
