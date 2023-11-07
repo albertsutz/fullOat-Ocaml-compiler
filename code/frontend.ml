@@ -1,6 +1,7 @@
 open Ll
 open Llutil
 open Ast
+open Astlib
 
 (* instruction streams ------------------------------------------------------ *)
 
@@ -281,7 +282,7 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
         t, Id ans_id, [I(ans_id, Load(Ptr t, op))]
       | _ -> failwith "broken invariant: identifier not a pointer"
     end
-    
+
   | Ast.Length e ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
     let ans_ty = begin match arr_ty with
@@ -330,10 +331,30 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
      you could write the loop using abstract syntax and then call cmp_stmt to
      compile that into LL code...
   *)
-  | Ast.NewArrInit (elt_ty, e1, id, e2) ->    
-    let _, size_op, size_code = cmp_exp tc c e1 in
-    let arr_ty, arr_op, alloc_code = oat_alloc_array tc elt_ty size_op in
-    arr_ty, arr_op, size_code >@ alloc_code
+
+  | Ast.NewArrInit (elt_ty, e1, id, e2) ->  
+    (* var a = new t[e1]; *)
+    let temp_id = "temp_array_initialization_of_a" in 
+    let first_stmt = Decl (temp_id, no_loc(Ast.NewArr(elt_ty, e1))) in 
+    (* vdecl list -> var id = 0 *)
+    let vdecl_list = [(id, no_loc(CInt 0L))] in 
+    (* exp node option -> id < length(a) *)
+    let node_option = Some(no_loc (
+      Bop (Lt, no_loc(Id id), no_loc(Length(no_loc(Id temp_id))))
+    )) in 
+    (* stmt node option -> id = id + 1 *)
+    let stmt_node_option = Some(no_loc (
+      Assn(no_loc(Id id), no_loc(Bop(Add, no_loc(Id id), no_loc(CInt 1L))))
+    )) in 
+    (* stmt node list -> a[id] = e2 *)
+    let stmt_node_list = [
+      no_loc(Assn(no_loc(Index(no_loc(Id temp_id), no_loc(Id id))), e2))
+    ] in 
+    let for_loop_statement = For(vdecl_list, node_option, stmt_node_option, stmt_node_list) in 
+    let c2, first_stmt_code = cmp_stmt (tc) (c) (Void) (no_loc(first_stmt)) in 
+    let c3, for_stmt_code = cmp_stmt (tc) (c2) (Void) (no_loc(for_loop_statement)) in 
+    let arr_ty, arr_op, arr_code = cmp_exp tc c2 (no_loc (Id temp_id)) in 
+    arr_ty, arr_op, first_stmt_code >@ for_stmt_code >@ arr_code
 
    (* STRUCT TASK: complete this code that compiles struct expressions.
       For each field component of the struct
