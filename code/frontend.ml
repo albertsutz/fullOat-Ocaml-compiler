@@ -645,35 +645,20 @@ let rec cmp_gexp c (tc : TypeCtxt.t) (e:Ast.exp node) : Ll.gdecl * (Ll.gid * Ll.
   type gdecl = { name : id; init : exp node } *)
   (* | GStruct of (ty * ginit) list *)
   | CStruct (id, cs) ->
-    let field_elts, gs = List.fold_right
-      (fun (id, cst) (field_elts, gs) ->
-          let gd, gs' = cmp_gexp c tc cst in
-          (id, gd)::field_elts, gs' @ gs) cs ([], [])
-    in
-    let fields = TypeCtxt.lookup id tc in
-    let gstruct_init = List.fold_right
-      (fun { fieldName; ftyp } acc ->
-        let gd = List.assoc fieldName field_elts in
-        gd :: acc) fields []
-    in
-    let gid = gensym "global_struct" in
+    let cmp_elt (id, cst) (field_elts, gs) = 
+      let gd, gs' = cmp_gexp c tc cst in
+      (id, gd)::field_elts, gs' @ gs in 
+    let field_elts, gs = List.fold_right cmp_elt cs ([], []) in 
+    let struct_fields = TypeCtxt.lookup id tc in 
+    let init = fun { fieldName; ftyp } acc ->
+      let gd = List.assoc fieldName field_elts in
+      gd :: acc in 
+    let gstruct_init = List.fold_right init struct_fields [] in 
+    let gid = gensym "g_struct" in
     let gstruct = GStruct gstruct_init in
-    let struct_t = Namedt id in
-    (Ptr struct_t, GGid gid), (gid, (struct_t, gstruct))::gs
+    let struct_type = Namedt id in
+    (Ptr struct_type, GGid gid), (gid, (struct_type, gstruct))::gs 
 
-  (* | Ast.CStruct (id, l) ->
-    let str_ty, str_op, alloc_code = oat_alloc_struct tc id in
-    let add_elt s (i, elt) =
-      let fty = cmp_ty tc @@ TypeCtxt.lookup_field id i tc in 
-      let elt_op, elt_code = cmp_exp_as tc c elt fty in 
-      let find = TypeCtxt.index_of_field id i tc in 
-      let field = gensym "field" in 
-      s >@ elt_code >@ lift
-        [ field, Gep(str_ty, str_op, [Const 0L; i64_op_of_int find ])
-        ; gensym "store",  Store(fty, elt_op, Id field) ] 
-    in
-    let ind_code = List.(fold_left add_elt [] l) in
-    str_ty, str_op, alloc_code >@ ind_code *)
 
   | _ -> failwith "bad global initializer"
 
