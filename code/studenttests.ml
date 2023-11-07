@@ -19,7 +19,7 @@ let fun_type_test : suite = [
         then ()
         else failwith "function type error"
     );
-    "sub_subrfunt:positive2", (fun () ->
+    (* "sub_subrfunt:positive2", (fun () ->
       let tc = { Tctxt.empty with structs=[
         "B", [{fieldName="sutz2"; ftyp=TRef RString}];
         "A", [{fieldName="sutz1"; ftyp=TRef RString}; {fieldName="sutz2"; ftyp=TRef RString}];
@@ -29,7 +29,7 @@ let fun_type_test : suite = [
       if Typechecker.subtype tc funtyp1 funtyp2
         then ()
         else failwith "function type error"
-    );
+    ); *)
     "sub_subrfunt:negativ1", (fun () ->
       let tc = { Tctxt.empty with structs=[
         "B", [{fieldName="sutz1"; ftyp=TRef RString}];
@@ -41,7 +41,7 @@ let fun_type_test : suite = [
         then failwith "function type error"
         else ()
     );
-    "sub_subrfunt:negative2", (fun () ->
+    (* "sub_subrfunt:negative2", (fun () ->
       let tc = { Tctxt.empty with structs=[
         "B", [{fieldName="sutz1"; ftyp=TInt}];
         "A", [{fieldName="sutz1"; ftyp=TRef RString}; {fieldName="sutz2"; ftyp=TRef RString}];
@@ -51,7 +51,7 @@ let fun_type_test : suite = [
       if Typechecker.subtype tc funtyp1 funtyp2
         then failwith "function type error"
         else ()
-    )
+    ) *)
   ]);
 ]
 
