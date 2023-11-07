@@ -55,4 +55,15 @@ let fun_type_test : suite = [
   ]);
 ]
 
-let provided_tests : suite = fun_type_test
+(* added 0 for return value *)
+let oatyytoa_test : suite = [
+  Test("Reversed a linked list", Gradedtests.executed_oat_file [
+    ("oatyytoa.oat", "1 2 3 4 5", "5 4 3 2 1 0");
+    ("oatyytoa.oat", "10 105 302 1212 12345 23123", "23123 12345 1212 302 105 10 0");
+    ("oatyytoa.oat", "1212 2323 3434 4545", "4545 3434 2323 1212 0");
+    ("oatyytoa.oat", "1", "1 0");
+  ])
+]
+
+
+let provided_tests : suite = fun_type_test @ oatyytoa_test

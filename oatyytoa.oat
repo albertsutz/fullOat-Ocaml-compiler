@@ -1,0 +1,84 @@
+int oat_stoi(string s) {
+    var result = 0;
+    var arr_str = array_of_string(s);
+    var n = length_of_string(s);
+
+    for (var i = 0; i < n; i = i + 1;) {
+        result = result * 10 + (arr_str[i] - 48);
+    }
+    return result;
+}
+
+struct Node {
+    int i;
+    Node? next
+}
+
+struct LinkedList {
+    Node? head
+}
+
+Node? createNode(int i) {
+    return new Node{i = i; next = Node null};
+}
+
+
+LinkedList? createLinkedList(Node? newHead) {
+    return new LinkedList{head = newHead};
+}
+
+void addToHead(LinkedList? ll, Node? newNode) {
+    if?(LinkedList x = ll) {
+        if?(Node y = newNode) {
+            y.next = x.head;
+            x.head = y;
+        }
+        return;
+    }
+    return;
+}
+
+void printLinkedList(LinkedList? ll) {
+    if?(LinkedList x = ll) {
+        var curNode = x.head;
+        while(true) {
+            if?(Node y = curNode) {
+                print_int(y.i);
+                curNode = y.next;
+                print_string(" ");
+            } else {
+                return;
+            }
+        }
+    }
+    return;
+}
+
+Node? reverseLinkedList(Node? head) {
+    if? (Node h = head) {
+        var next = h.next; 
+        if? (Node n = next) {
+            var p = reverseLinkedList(next); 
+            n.next = h;
+            h.next = Node null;
+            return p;
+        }
+        return head;
+    }
+    return head;
+}
+
+int program(int argc, string[] argv) {
+    var ll = createLinkedList(Node null);
+    for (var i = argc - 1; i > 0; i = i - 1;) {
+        var node_int = oat_stoi(argv[i]);
+        var newNode = createNode(node_int);
+        addToHead(ll, newNode);
+    }
+    if?(LinkedList x = ll) {
+        var reversed = createLinkedList(reverseLinkedList(x.head));
+        printLinkedList(reversed);
+        print_string("\n");
+    }
+    return 0;
+}
