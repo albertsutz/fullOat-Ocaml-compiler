@@ -321,17 +321,6 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     let arr_ty, arr_op, alloc_code = oat_alloc_array tc elt_ty size_op in
     arr_ty, arr_op, size_code >@ alloc_code
 
-  (* ARRAY TASK: Modify the compilation of the NewArrInit construct to implement the 
-     initializer:
-         - the initializer is a loop that uses id as the index
-         - each iteration of the loop the code evaluates e2 and assigns it
-           to the index stored in id.
-
-     Note: You can either write code to generate the LL loop directly, or
-     you could write the loop using abstract syntax and then call cmp_stmt to
-     compile that into LL code...
-  *)
-
   | Ast.NewArrInit (elt_ty, e1, id, e2) ->  
     (* var a = new t[e1]; *)
     let temp_id = "temp_array_initialization_of_a" in 
@@ -392,13 +381,6 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
   | Ast.Proj (e, i) ->
     failwith "todo: Ast.Proj case of cmp_exp_lhs"
 
-
-  (* ARRAY TASK: Modify this index code to call 'oat_assert_array_length' before doing the 
-     GEP calculation. This should be very straightforward, except that you'll need to use a Bitcast.
-     You might want to take a look at the implementation of 'oat_assert_array_length'
-     in runtime.c.   (That check is where the infamous "ArrayIndexOutOfBounds" exception would 
-     be thrown...)
-  *)
   | Ast.Index (e, i) ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
     let _, ind_op, ind_code = cmp_exp tc c i in
@@ -472,20 +454,23 @@ and cmp_stmt (tc : TypeCtxt.t) (c:Ctxt.t) (rt:Ll.ty) (stmt:Ast.stmt node) : Ctxt
         >:: L lt >@ then_code >:: T(Br lm) 
         >:: L le >@ else_code >:: T(Br lm) 
         >:: L lm
-
-  (* CAST TASK: Fill in this case of the compiler to implement the 'if?' checked
-     null downcast statement.  
-       - check whether the value computed by exp is null, if so jump to
-         the 'null' block, otherwise take the 'notnull' block
-
-       - the identifier id is in scope in the 'notnull' block and so 
-         needs to be allocated (and added to the context)
-
-       - as in the if-the-else construct, you should jump to the common
-         merge label after either block
-  *)
+        
   | Ast.Cast (typ, id, exp, notnull, null) ->
-    failwith "todo: implement Ast.Cast case"
+    let exp_ty, exp_op, exp_code = cmp_exp tc c exp in 
+    let check_null_id = gensym "check_null" in 
+    let check_null_code = lift [( check_null_id, Icmp (Eq, exp_ty, exp_op, Null))] in 
+    let vdecl_stmt = Decl (id, exp) in 
+    let c2, vdecl_stmt_code = cmp_stmt (tc) (c) (Void) (no_loc(vdecl_stmt)) in 
+    let _, not_null_blk_code = cmp_block tc c2 rt notnull in 
+    let act_not_null_blk_code = vdecl_stmt_code >@ not_null_blk_code in 
+    let _, null_blk_code = cmp_block tc c rt null in 
+    let lnull, lnotnull, lm = gensym "ifnull", gensym "ifnotnull", gensym "merge" in 
+    c, exp_code 
+      >@ check_null_code 
+      >:: T(Cbr ( Id(check_null_id), lnull, lnotnull))
+      >:: L lnull >@ null_blk_code >:: T(Br lm)
+      >:: L lnotnull >@ act_not_null_blk_code >:: T(Br lm)
+      >:: L lm
 
   | Ast.While (guard, body) ->
      let guard_ty, guard_op, guard_code = cmp_exp tc c guard in
