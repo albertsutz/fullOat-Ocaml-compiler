@@ -281,13 +281,17 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
         t, Id ans_id, [I(ans_id, Load(Ptr t, op))]
       | _ -> failwith "broken invariant: identifier not a pointer"
     end
-
-  (* ARRAY TASK: complete this case to compile the length(e) expression.
-       The emitted code should yield the integer stored as part 
-       of the array struct representation.
-  *)
+    
   | Ast.Length e ->
-    failwith "todo:implement Ast.Length case"
+    let arr_ty, arr_op, arr_code = cmp_exp tc c e in
+    let ans_ty = begin match arr_ty with
+    | Ptr (Struct [_; Array _]) -> I64
+    | _ -> failwith "Ast length called on non array"
+    end in 
+    let length_ptr_id, ans_id = gensym "length_ptr", gensym "length" in 
+    let gep_code = arr_code >@ lift [length_ptr_id, Gep(arr_ty, arr_op, [i64_op_of_int 0; i64_op_of_int 0])] in 
+    let load_ins =  I(ans_id, Load(Ptr ans_ty, (Id length_ptr_id))) in 
+    ans_ty, Id ans_id, gep_code >:: load_ins
 
   | Ast.Index (e, i) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
@@ -344,6 +348,8 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
     let ans_id = gensym "proj" in
     ans_ty, Id ans_id, code >:: I(ans_id, Load(Ptr ans_ty, ptr_op))
+  
+  (* | _ -> failwith "nothing" *)
 
 
 and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand * stream =
