@@ -375,25 +375,18 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
       | _ -> failwith "Unexpected variable type" in
     t, op, []
 
-  (* STRUCT TASK: Complete this code that emits LL code to compute the
-     address of the i'th field from a value of struct type.  Note that
-     the actual load from the address to project the value is handled by the
-     Ast.proj case of the cmp_exp function (above).
-
-     You will find the TypeCtxt.lookup_field_name function helpful.
-  *)
   | Ast.Proj (e, i) ->
-    failwith "error"
-    (* let arr_ty, arr_op, arr_code = cmp_exp tc c e in
-    let _, ind_op, ind_code = cmp_exp tc c i in
-    let ans_ty = match arr_ty with 
-      | Ptr (Struct [_; Array (_,t)]) -> t 
-      | _ -> failwith "Index: indexed into non pointer" in
-    let ptr_id, tmp_id, call_id = gensym "index_ptr", gensym "tmp", gensym "call" in
-    ans_ty, (Id ptr_id),
-    arr_code >@ ind_code >@ lift 
-      [ptr_id, Gep(arr_ty, arr_op, [i64_op_of_int 0; i64_op_of_int 1; ind_op]);]
-       *)
+    let str_ty, str_op, str_code = cmp_exp tc c e in
+    let sty = match str_ty with 
+              | Ptr (Namedt t) -> t 
+              | _ -> failwith "not a struct" in 
+    let elt_ty, elt_index = TypeCtxt.lookup_field_name sty i tc in
+    let ll_ty = cmp_ty tc elt_ty in 
+    let field_id = gensym "proj" in 
+    ll_ty, (Id field_id),
+    str_code >@ lift 
+      [field_id, Gep(str_ty, str_op, [i64_op_of_int 0; Const elt_index]);]
+      
 
   | Ast.Index (e, i) ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
