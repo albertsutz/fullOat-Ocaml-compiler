@@ -188,16 +188,15 @@ let oat_alloc_array ct (t:Ast.ty) (size:Ll.operand) : Ll.ty * operand * stream =
     ; ans_id, Bitcast(arr_ty, Id arr_id, ans_ty) ]
 
 
-(* STRUCT TASK: Complete this helper function that allocates an oat structure on the 
-   heap and returns a target operand with the appropriate reference.  
-   
-   - generate a call to 'oat_malloc' and use bitcast to convert the
-     resulting pointer to the right type
-
-   - make sure to calculate the correct amount of space to allocate!
-*)
 let oat_alloc_struct ct (id:Ast.id) : Ll.ty * operand * stream =
-  failwith "TODO: oat_alloc_struct"
+  let ans_id, str_id = gensym "struct", gensym "raw_struct" in
+  let fields = TypeCtxt.lookup id ct in 
+  let str_size = Int64.of_int @@ 8 * (List.length fields) in 
+  let ans_ty = cmp_ty ct @@ TRef (RStruct id) in 
+  let str_ty = Ptr I64 in 
+  ans_ty, Id ans_id, lift
+    [ str_id, Call(str_ty, Gid "oat_malloc", [I64, Const str_size])
+    ; ans_id, Bitcast(str_ty, Id str_id, ans_ty)]
 
 
 let str_arr_ty s = Array(1 + String.length s, I8)
@@ -345,14 +344,19 @@ let rec cmp_exp (tc : TypeCtxt.t) (c:Ctxt.t) (exp:Ast.exp node) : Ll.ty * Ll.ope
     let arr_ty, arr_op, arr_code = cmp_exp tc c2 (no_loc (Id temp_id)) in 
     arr_ty, arr_op, first_stmt_code >@ for_stmt_code >@ arr_code
 
-   (* STRUCT TASK: complete this code that compiles struct expressions.
-      For each field component of the struct
-       - use the TypeCtxt operations to compute getelementptr indices
-       - compile the initializer expression
-       - store the resulting value into the structure
-   *)
   | Ast.CStruct (id, l) ->
-    failwith "TODO: Ast.CStruct"
+    let str_ty, str_op, alloc_code = oat_alloc_struct tc id in
+    let add_elt s (i, elt) =
+      let fty = cmp_ty tc @@ TypeCtxt.lookup_field id i tc in 
+      let elt_op, elt_code = cmp_exp_as tc c elt fty in 
+      let find = TypeCtxt.index_of_field id i tc in 
+      let field = gensym "field" in 
+      s >@ elt_code >@ lift
+        [ field, Gep(str_ty, str_op, [Const 0L; i64_op_of_int find ])
+        ; gensym "store",  Store(fty, elt_op, Id field) ] 
+    in
+    let ind_code = List.(fold_left add_elt [] l) in
+    str_ty, str_op, alloc_code >@ ind_code
 
   | Ast.Proj (e, id) ->
     let ans_ty, ptr_op, code = cmp_exp_lhs tc c exp in
@@ -379,7 +383,17 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
      You will find the TypeCtxt.lookup_field_name function helpful.
   *)
   | Ast.Proj (e, i) ->
-    failwith "todo: Ast.Proj case of cmp_exp_lhs"
+    failwith "error"
+    (* let arr_ty, arr_op, arr_code = cmp_exp tc c e in
+    let _, ind_op, ind_code = cmp_exp tc c i in
+    let ans_ty = match arr_ty with 
+      | Ptr (Struct [_; Array (_,t)]) -> t 
+      | _ -> failwith "Index: indexed into non pointer" in
+    let ptr_id, tmp_id, call_id = gensym "index_ptr", gensym "tmp", gensym "call" in
+    ans_ty, (Id ptr_id),
+    arr_code >@ ind_code >@ lift 
+      [ptr_id, Gep(arr_ty, arr_op, [i64_op_of_int 0; i64_op_of_int 1; ind_op]);]
+       *)
 
   | Ast.Index (e, i) ->
     let arr_ty, arr_op, arr_code = cmp_exp tc c e in
