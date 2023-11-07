@@ -375,13 +375,6 @@ and cmp_exp_lhs (tc : TypeCtxt.t) (c:Ctxt.t) (e:exp node) : Ll.ty * Ll.operand *
       | _ -> failwith "Unexpected variable type" in
     t, op, []
 
-  (* STRUCT TASK: Complete this code that emits LL code to compute the
-     address of the i'th field from a value of struct type.  Note that
-     the actual load from the address to project the value is handled by the
-     Ast.proj case of the cmp_exp function (above).
-
-     You will find the TypeCtxt.lookup_field_name function helpful.
-  *)
   | Ast.Proj (e, i) ->
     let str_ty, str_op, str_code = cmp_exp tc c e in
     let sty = match str_ty with 
