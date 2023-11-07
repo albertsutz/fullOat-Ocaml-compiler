@@ -55,4 +55,32 @@ let fun_type_test : suite = [
   ]);
 ]
 
-let provided_tests : suite = fun_type_test
+let struct_type_test : suite = [
+  Test("subtype_struct", [
+    "subtype_struct:positive", (fun () ->
+      let tc = { Tctxt.empty with structs=[
+        "SuperType", [{fieldName="a"; ftyp=TRef (RArray TInt) }; {fieldName="b"; ftyp= TBool }];
+        "SubType", [{fieldName="a"; ftyp=TRef (RArray TInt) }; {fieldName="b"; ftyp= TBool }; {fieldName="c"; ftyp=TRef RString }];
+      ]} in
+      let str1 = TRef (RStruct "SubType") in
+      let str2 = TRef (RStruct "SuperType") in
+      if Typechecker.subtype tc str1 str2
+        then ()
+        else failwith "array subtype error"
+    );
+    "subtype_struct:negative", (fun () ->
+      let tc = { Tctxt.empty with structs=[
+        "SuperType", [{fieldName="a"; ftyp=TRef (RArray TInt) }; {fieldName="b"; ftyp= TBool }];
+        "SubType", [{fieldName="a"; ftyp=TRef (RArray TInt) }; {fieldName="b"; ftyp= TBool }; {fieldName="c"; ftyp=TRef RString }];
+      ]} in
+      let str1 = TRef (RStruct "SubType") in
+      let str2 = TRef (RStruct "SuperType") in
+      if not (Typechecker.subtype tc str2 str1)
+        then ()
+        else failwith "array subtype error"
+    );
+  ]);
+]
+
+let provided_tests : suite = struct_type_test @ fun_type_test
+  
